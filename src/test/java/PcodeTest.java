@@ -26,10 +26,13 @@ public class PcodeTest {
                 "src/main/resources/ClobalProgs/while.clobal.c,8"})
     public void test(String filename,String actual) throws Exception {
         String pcode = getPcode(filename);
+        System.out.println(pcode);
         String expected = Interpreter.run2(pcode);
         //System.out.println(expected);
         if (actual.equals("empty")) {
             actual = "";
+            //brt bedingte sprung
+            // unbedingte sprunge
         }
         assertEquals(actual,expected);
 
@@ -46,7 +49,7 @@ public class PcodeTest {
         ParseTreeWalker walker = new ParseTreeWalker();
         DefPhase def = new DefPhase();
         walker.walk(def, tree);
-        Listener ref = new Listener(def.vars);
+        Listener ref = new Listener(def.globalscope);
         walker.walk(ref, tree);
         return ref.getCode(tree).render().trim();
     }

@@ -9,16 +9,15 @@ import org.stringtemplate.v4.STGroup;
 import org.stringtemplate.v4.STGroupFile;
 
 import java.io.IOException;
-import java.util.List;
 
 public class Listener extends ClobalBaseListener{
 
     public final STGroup templates = new STGroupFile("src/main/resources/testClobal.stg");
-    public List<String> vars;
+    GlobalScope globalscope;
 
     public int index;
-    public Listener(List<String> vars) {
-        this.vars = vars;
+    public Listener(GlobalScope globalscope) {
+        this.globalscope = globalscope;
         this.index = 0;
     }
 
@@ -27,9 +26,9 @@ public class Listener extends ClobalBaseListener{
         return index;
     }
 
-    ParseTreeProperty<BLabel> bTest = new ParseTreeProperty<BLabel>();
-    public void setBTest(ParseTree node, BLabel value) { bTest.put(node, value); }
-    public BLabel getBTest(ParseTree node) { return bTest.get(node); }
+    ParseTreeProperty<BLabel> bWert = new ParseTreeProperty<BLabel>();
+    public void setBWert(ParseTree node, BLabel value) { bWert.put(node, value); }
+    public BLabel getBWert(ParseTree node) { return bWert.get(node); }
     ParseTreeProperty<ST> code = new ParseTreeProperty<ST>();
     public void setCode(ParseTree node, ST value) { code.put(node, value); }
     public ST getCode(ParseTree node) { return code.get(node); }
@@ -57,24 +56,20 @@ public class Listener extends ClobalBaseListener{
         String name = ctx.ID().getText();
         ST expr = getCode(ctx.expr());
         //int var;
-        if (vars.contains(name)) {
-            int var = vars.indexOf(name);
-            ST result = templates.getInstanceOf("gstore").add("v",var).add("e",expr);
-            setCode(ctx,result);
-        } else {
-            System.out.println("no variable with this name: " + name);
-        }
+        int var = globalscope.resolve(name).getIndex();
+        ST result = templates.getInstanceOf("gstore").add("v",var).add("e",expr);
+        setCode(ctx,result);
 
     }
     public void exitVar(ClobalParser.VarContext ctx) {
         String name = ctx.ID().getSymbol().getText();
-        //int var;
-        if (vars.contains(name)) {
-            int var = vars.indexOf(name);
-            ST result = templates.getInstanceOf("varRef").add("v",var);
-            setCode(ctx,result);
-        } else {
+        Symbol variable =  globalscope.resolve(name);
+        if (variable == null || variable instanceof FunctionSymbol) {
             System.out.println("no variable with this name: " + name);
+        } else {
+            ST result = templates.getInstanceOf("varRef").add("v",variable.getIndex());
+            setCode(ctx,result);
+            //System.out.println("variable: " + variable.getName() + " type: " + variable.getType());
         }
 
 
@@ -134,15 +129,15 @@ public class Listener extends ClobalBaseListener{
 
     public void exitIfStat(ClobalParser.IfStatContext ctx) {
 
-        String bTrue = getBTest(ctx.bexpr()).getbTrue();
-        String bFalse = getBTest(ctx.bexpr()).getbFalse();
+        String bTrue = getBWert(ctx.bexpr()).getbTrue();
+        String bFalse = getBWert(ctx.bexpr()).getbFalse();
         int len = ctx.stat().size();
         ST bexpr = getCode(ctx.bexpr());
         ST result;
         ST stat1 = getCode(ctx.stat(0));
         if (len > 1) {
 
-            String bNext = "bNext" + getBTest(ctx.bexpr()).getIndex();
+            String bNext = "bNext" + getBWert(ctx.bexpr()).getIndex();
             ST stat2 = getCode(ctx.stat(1));
             ST bNextCode = templates.getInstanceOf("trueFalse").add("value",bNext);
             result = templates.getInstanceOf("ifElse").add("be",bexpr).add("stat1",stat1).add("stat2",stat2).add("bTrue",bTrue).add("bFalse",bFalse).add("bNextCode",bNextCode).add("bNext",bNext);
@@ -154,9 +149,9 @@ public class Listener extends ClobalBaseListener{
     }
     public void exitWhileStat(ClobalParser.WhileStatContext ctx) {
 
-        String bTrue = getBTest(ctx.bexpr()).getbTrue();
-        String bFalse = getBTest(ctx.bexpr()).getbFalse();
-        String begin = "begin" + getBTest(ctx.bexpr()).getIndex();
+        String bTrue = getBWert(ctx.bexpr()).getbTrue();
+        String bFalse = getBWert(ctx.bexpr()).getbFalse();
+        String begin = "begin" + getBWert(ctx.bexpr()).getIndex();
         ST bexpr = getCode(ctx.bexpr());
         ST stat = getCode(ctx.stat());
         ST beginCode = templates.getInstanceOf("trueFalse").add("value",begin);
@@ -170,9 +165,9 @@ public class Listener extends ClobalBaseListener{
     }
 
     public void exitForStat(ClobalParser.ForStatContext ctx) {
-        String bTrue = getBTest(ctx.bexpr()).getbTrue();
-        String bFalse = getBTest(ctx.bexpr()).getbFalse();
-        String begin = "begin" + getBTest(ctx.bexpr()).getIndex();
+        String bTrue = getBWert(ctx.bexpr()).getbTrue();
+        String bFalse = getBWert(ctx.bexpr()).getbFalse();
+        String begin = "begin" + getBWert(ctx.bexpr()).getIndex();
         ST bexpr = getCode(ctx.bexpr());
         ST stat = getCode(ctx.stat());
         ST assign1 = getCode(ctx.assignStat(0));
@@ -219,7 +214,7 @@ public class Listener extends ClobalBaseListener{
     public void exitFile(ClobalParser.FileContext ctx) {
 
         ST result = templates.getInstanceOf("file");
-        result.add("num",vars.size());
+        result.add("num",globalscope.symbols.size());
         int len = ctx.functionDecl().size();
         for (int i = 0; i < len; i++) {
             result.add("function",getCode(ctx.functionDecl(i)));
@@ -231,20 +226,20 @@ public class Listener extends ClobalBaseListener{
     public void enterTrue(ClobalParser.TrueContext ctx) {
         int i = getIndex();
         BLabel result = new BLabel(i);
-        setBTest(ctx,result);
+        setBWert(ctx,result);
     }
     public void exitTrue(ClobalParser.TrueContext ctx) {
-        String value = getBTest(ctx).bTrue;
+        String value = getBWert(ctx).bTrue;
         setCode(ctx,templates.getInstanceOf("trueFalse").add("value",value));
     }
     public void exitFalse(ClobalParser.FalseContext ctx) {
-        String value = getBTest(ctx).bFalse;
+        String value = getBWert(ctx).bFalse;
         setCode(ctx,templates.getInstanceOf("trueFalse").add("value",value));
     }
     public void enterFalse(ClobalParser.FalseContext ctx) {
         int i = getIndex();
         BLabel result = new BLabel(i);
-        setBTest(ctx,result);
+        setBWert(ctx,result);
     }
 
     public void exitReturnStat(ClobalParser.ReturnStatContext ctx) {
@@ -258,17 +253,24 @@ public class Listener extends ClobalBaseListener{
     }
     public void exitCall(ClobalParser.CallContext ctx) {
         //ST result = templates.getInstanceOf("call");
-        ST result = templates.getInstanceOf("functionCall");
-        String name = ctx.ID().getText();
-        result.add("name",name);
-        setCode(ctx,result);
+        String name = ctx.ID().getSymbol().getText();
+        Symbol func = globalscope.resolve(name);
+        if (func == null || func instanceof VariableSymbol) {
+            System.out.println("no such function: "+name);
+        } else {
+            ST result = templates.getInstanceOf("functionCall");
+
+            result.add("name",name);
+            setCode(ctx,result);
+        }
+
     }
     public void exitFunCall(ClobalParser.FunCallContext ctx) {
         setCode(ctx,getCode(ctx.expr()));
     }
 
     public void enterVergleich(ClobalParser.VergleichContext ctx) {
-            BLabel test = getBTest(ctx.getParent());
+            BLabel test = getBWert(ctx.getParent());
             BLabel result;
             if (test != null) {
                 result = new BLabel(test.index);
@@ -285,13 +287,13 @@ public class Listener extends ClobalBaseListener{
                 result = new BLabel(i);
             }
 
-            setBTest(ctx,result);
+            setBWert(ctx,result);
 
     }
     public void exitVergleich(ClobalParser.VergleichContext ctx) {
 
-        String bTrue = getBTest(ctx).getbTrue();
-        String bFalse = getBTest(ctx).getbFalse();
+        String bTrue = getBWert(ctx).getbTrue();
+        String bFalse = getBWert(ctx).getbFalse();
 
         ST left = getCode(ctx.expr(0));
 
@@ -312,7 +314,7 @@ public class Listener extends ClobalBaseListener{
     }
 
     public void enterNot(ClobalParser.NotContext ctx) {
-        BLabel test = getBTest(ctx.getParent());
+        BLabel test = getBWert(ctx.getParent());
         BLabel result;
         if (test != null) {
             result = new BLabel(test.index);
@@ -328,14 +330,14 @@ public class Listener extends ClobalBaseListener{
             int i = getIndex();
             result = new BLabel(i);
         }
-        setBTest(ctx,result);
+        setBWert(ctx,result);
     }
     public void exitNot(ClobalParser.NotContext ctx) {
         setCode(ctx,getCode(ctx.bexpr()));
     }
     public void enterVergleichParens(ClobalParser.VergleichParensContext ctx) {
 
-        BLabel test = getBTest(ctx.getParent());
+        BLabel test = getBWert(ctx.getParent());
         BLabel result;
         if (test != null) {
             result = new BLabel(test.index);
@@ -350,7 +352,7 @@ public class Listener extends ClobalBaseListener{
             int i = getIndex();
             result = new BLabel(i);
         }
-        setBTest(ctx,result);
+        setBWert(ctx,result);
     }
     public void exitVergleichParens(ClobalParser.VergleichParensContext ctx) {
         setCode(ctx,getCode(ctx.bexpr()));
@@ -370,7 +372,7 @@ public class Listener extends ClobalBaseListener{
         ParseTreeWalker walker = new ParseTreeWalker();
         DefPhase def = new DefPhase();
         walker.walk(def, tree);
-        Listener ref = new Listener(def.vars);
+        Listener ref = new Listener(def.globalscope);
         walker.walk(ref, tree);
     }
 
