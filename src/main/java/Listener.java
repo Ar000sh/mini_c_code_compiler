@@ -128,17 +128,20 @@ public class Listener extends ClobalBaseListener{
     }
 
     public void exitIfStat(ClobalParser.IfStatContext ctx) {
-
+        // die labels für den booleschen Ausdruck
         String bTrue = getBWert(ctx.bexpr()).getbTrue();
         String bFalse = getBWert(ctx.bexpr()).getbFalse();
         int len = ctx.stat().size();
+        // den booleschen Ausdruck mit den Sprüngen
         ST bexpr = getCode(ctx.bexpr());
         ST result;
         ST stat1 = getCode(ctx.stat(0));
+        // überprüfung ob es sich um ifelse handelt
         if (len > 1) {
 
             String bNext = "bNext" + getBWert(ctx.bexpr()).getIndex();
             ST stat2 = getCode(ctx.stat(1));
+            // unbedingte Sprünge zu Ende wenn True aus gewertet wurde
             ST bNextCode = templates.getInstanceOf("trueFalse").add("value",bNext);
             result = templates.getInstanceOf("ifElse").add("be",bexpr).add("stat1",stat1).add("stat2",stat2).add("bTrue",bTrue).add("bFalse",bFalse).add("bNextCode",bNextCode).add("bNext",bNext);
         } else {
@@ -308,7 +311,7 @@ public class Listener extends ClobalBaseListener{
 
             result = templates.getInstanceOf("relop").add("e1",left).add("e2",right).add("bTrue",bTrue).add("bFalse",bFalse).add("operator","ilt");
         } else {
-            result = templates.getInstanceOf("relop").add("e1",left).add("e2",right).add("bTrue",bFalse).add("bFalse",bTrue).add("operator","ilt");        }
+            result = templates.getInstanceOf("relop").add("e1",right).add("e2",left).add("bTrue",bTrue).add("bFalse",bFalse).add("operator","ilt");        }
 
         setCode(ctx,result);
     }
