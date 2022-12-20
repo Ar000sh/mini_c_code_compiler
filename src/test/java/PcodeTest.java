@@ -31,8 +31,7 @@ public class PcodeTest {
         //System.out.println(expected);
         if (actual.equals("empty")) {
             actual = "";
-            //brt bedingte sprung
-            // unbedingte sprunge
+
         }
         assertEquals(actual,expected);
 
